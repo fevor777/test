@@ -1,155 +1,107 @@
 function eval() {
-    // Do not use eval!!!
-    return;
+	// Do not use eval!!!
+	return;
 }
 
-var delSpace = function (ex){
-	var i;
-	var res="";
-	for (i=0;i<ex.length;i++){
-		if (ex[i]!=" "){res+=ex[i];}
-	}
-	return res;
-}
-var correct3signs = function (ex){
-	while(ex.indexOf("*--")!=-1){ex=ex.split("*--").join("*");}
-	while(ex.indexOf("/--")!=-1){ex=ex.split("/--").join("/");}
-	while(ex.indexOf("+--")!=-1){ex=ex.split("+--").join("+");}
-	while(ex.indexOf("---")!=-1){ex=ex.split("---").join("-");}
-	return ex;
-}
-var hup=function (a,b,h){
-	if (h=="*"){return a*b;}
-	if (h=="/"){if (b==0){throw "TypeError: Division by zero.";} return a/b;}
-	if (h=="+"){return a+b;}
-	if (h=="-"){return a-b;}
-}
-var isMulDivSign=function (el){
-	if ((el=="*")||
-		(el=="/")){
-		return true;
-	}
+function isSign(c) {
+	sgn = '+-*/';
+	if (sgn.indexOf(c) != -1) { return true; }
 	return false;
 }
-var isPriorSign = function (el,pre){
-	if (el=="="){return true;}
-	if (el=="+"){return true;}
-	if ((el=="-")&&(isSign(pre)==false)){
-		return true;
-	}
-	return false;
-}
-var isSign = function (el){
-	if ((el=="*")||
-		(el=="/")||
-		(el=="+")||
-		(el=="-")||
-		(el=="!")){
-		return true;
-	}
+function isNum(c) {
+	sgn = '0123456789';
+	if (sgn.indexOf(c) != -1) { return true; }
 	return false;
 }
 
-var solve_buf =function (bf){
-	var i;
-	var res=Number(bf[0].substring(0,bf[0].length-1));
-	for (i=0;i<bf.length-1;i++){
-		var b=Number(bf[i+1].substring(0,bf[i+1].length-1));
-		var h=bf[i][bf[i].length-1];
-		res=hup(res,b,h);
-	}
-	return res;
+function op(a, b, o) {
+	if (o == '+') { return a + b; }
+	if (o == '-') { return a - b; }
+	if (o == '*') { return a * b; }
+	//if (o=='/'){return a/b;}
+	if (o == "/") { if (b == 0) { throw "TypeError: Division by zero."; } return a / b; }
 }
 
-var solve_muldiv= function (ex){
-	var i;
-	var bf=[];
-	var ex_part="";
-	for (i=0;i<ex.length;i++){
-		if (isMulDivSign(ex[i])==true){
-		ex_part+=ex[i];
-		bf.push(ex_part);
-		ex_part="";
-		} else {ex_part+=ex[i];}
+function calcExpression(expression) {
+	var tree = getTree(prior(expression));
+
+	var calcTree = function (ar) { //func mutates tree
+		var aop;
+		var ope;
+		var res;
+		if (Array.isArray(ar[0])) { res = calcTree(ar.shift()); } else { res = ar.shift(); }
+		while (ar.length > 0) {
+			ope = ar.shift();
+			if (Array.isArray(ar[0])) { ar[0] = calcTree(ar[0]); }
+			aop = ar.shift();
+			res = op(+res, +aop, ope);
+		}
+		return res;
 	}
-	bf.push(ex_part);
-	var res=solve_buf(bf)
-	return String(res)+ex[ex.length-1];
+
+	return calcTree(tree);
 }
 
-var solve_addif=function  (ex){
-	var i;
-	var bf=[];
-	var ex_part="";
-	for (i=1;i<ex.length;i++){
-		if (isPriorSign(ex[i],ex[i-1])==true){
-		ex_part+=ex[i];
-		bf.push(ex_part);
-		ex_part="";
-		} else {ex_part+=ex[i];}
+function getTree(expression) {
+	var a = expression.split('');
+	var tree = [];
+
+	var parseTree = function (head, ar) { //warning! func mutate head and arr
+		var cv = '';
+		var cn = '';
+		while (ar.length > 0) {
+			cv = ar.shift();
+			if (isNum(cv)) { cn += cv; } else { if (cn != '') { head.push(cn); cn = ''; } }
+			if (isSign(cv)) { head.push(cv); }
+			//if (isSign(cv)){head[head.length-1]+=(cv);}
+			if (cv == '(') {
+				head.push([]);
+				parseTree(head[head.length - 1], ar);
+			} else {
+				if (cv == ')') { return false; }
+			}
+		}
+		if (cn != '') { head.push(cn); }
+		return false;
 	}
-	//console.log(bf);
-	for (i=0;i<bf.length;i++){
-		bf[i]=solve_muldiv(bf[i]);
+
+	parseTree(tree, a);
+	return tree;
+}
+function prior(expr) {
+	var i = 0;
+	var ar = expr.split('');
+	ar.unshift('(');
+	ar.push(')');
+	for (i = 0; i < ar.length; i++) {
+		if (ar[i] == '+') { ar[i] = ')+('; }
+		if (ar[i] == '-') { ar[i] = ')-('; }
+		if (ar[i] == '(') { ar[i] = '(('; }
+		if (ar[i] == ')') { ar[i] = '))'; }
 	}
-	//console.log(bf);
-	return solve_buf(bf);
+	//you can add more levels of priority
+	return ar.join('');
 }
 
-var solve_par=function (ex){
-	var i;
-	var lev=0;
-	var pre="";
-	var ins="";
-	var post="";
-	i=0;
-	while ((ex[i]!="(")&&(i<ex.length)){
-		pre+=ex[i];
-		i++;
-	}
-	if (i==ex.length){return solve_addif('!'+ex+'=');}
-	do {
-		if (ex[i]=="("){lev++;}
-		if (ex[i]==")"){lev--;}
-		ins+=ex[i];
-		i++;
-	} while (lev>0);
-	if (pre=="-"){pre="0-";}
-	ins=ins.substr(1,ins.length-2);
-	while (i<ex.length){
-		post+=ex[i];
-		i++;
-	}
-	//console.log([pre,ins,post]);
-	ins=solve_par(ins);
-	return solve_par(correct3signs(pre+ins+post));
-}
-var solve_full= function (ex){
-	var res=solve_par(correct3signs(delSpace(ex)));
-	//console.log([res,eval(ex)]);
-	return res;
-}
-var calc = function (expression) {
-  
-  return solve_full(expression);
-  
+function deleteSpaces(expr) {
+	return expr.split("").filter((it) => it.length).join('');
 }
 
 function expressionCalculator(expr) {
-    expr=expr.split("").filter((it)=>it.length).join('');
-    var sc=expr.trim().split(/[0-9+\-*/ ]+/).join("").split('');
-    var lv=0;console.log(sc);
-    sc.forEach((it)=>{ 
-        
-        if (lv<0){throw ("ExpressionError: Brackets must be paired")}
-        if (it=="("){lv++;}
-        if (it==")"){lv--;}
-    });
-    if (lv!=0){throw ("ExpressionError: Brackets must be paired")}
+	expr = deleteSpaces(expr);
 
-    return solve_full(expr);  
+	var sc = expr.trim().split(/[0-9+\-*/ ]+/).join("").split('');
+	var lv = 0;
+	sc.forEach((it) => {
+		if (lv < 0) { throw ("ExpressionError: Brackets must be paired") }
+		if (it == "(") { lv++; }
+		if (it == ")") { lv--; }
+	});
+	if (lv != 0) { throw ("ExpressionError: Brackets must be paired") }
+
+	return calcExpression(expr);
 }
 
 module.exports = {
-    expressionCalculator
+	expressionCalculator
 }
